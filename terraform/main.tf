@@ -1,10 +1,11 @@
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws" # Correct source for AWS provider
-      version = "~> 4.0"        # Specify the version constraint for AWS provider
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
     }
   }
+
   backend "s3" {
     bucket = var.bucket_name
     key    = "aws/ec2-deploy/terraform.tfstate"
@@ -22,14 +23,6 @@ resource "aws_instance" "server" {
   key_name               = aws_key_pair.deployer.key_name
   vpc_security_group_ids = [aws_security_group.mainGroup.id]
   iam_instance_profile   = aws_iam_instance_profile.ec2-profile.name
-
-  connection {
-    type        = "ssh"
-    host        = self.public_ip
-    user        = "ubuntu"
-    private_key = var.private_key
-    timeout     = "4m"
-  }
 
   tags = {
     name = "deployVM"
@@ -99,6 +92,6 @@ resource "aws_key_pair" "deployer" {
 }
 
 output "instance_public_ip" {
-  value     = aws_instance.server.public_ip
-  sensitive = true
+  value = aws_instance.server.public_ip
+  sensitive = false
 }
