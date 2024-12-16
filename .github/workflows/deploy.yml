@@ -90,7 +90,7 @@ jobs:
             script: |-
               sudo apt update
               sudo apt install docker.io -y
-              sudo apt install awscli
+              sudo apt install awscli -y
               sudo $(aws ecr get-login --no-include-email --region eu-north-1);
               sudo docker stop myappcontainer || true
               sudo docker rm myappcontainer || true
