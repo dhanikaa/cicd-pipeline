@@ -39,8 +39,8 @@ jobs:
           working-directory: ./terraform
         - name: Set output
           id: set-ip
-          run: |
-            echo "instance_public_ip=$(terraform output instance_public_ip)"
+          run: |-
+            echo "::set-output name=instance_public_ip::$(terraform output instance_public_ip)"
           working-directory: ./terraform
 
     deploy-app:
