@@ -60,7 +60,7 @@ jobs:
             AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
             AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         - name: Set IP env variable
-          run: echo SERVER_PUBLIC_IP=${{ env.SERVER_PUBLIC_IP }} >> $GITHUB_ENV
+          run: echo SERVER_PUBLIC_IP=${{ needs.deploy-infrastructure.outputs.SERVER_PUBLIC_IP }} >> $GITHUB_ENV
         - name: Debug SERVER_PUBLIC_IP
           run: echo "SERVER_PUBLIC_IP=${{ env.SERVER_PUBLIC_IP }}"
         - name: Login to AWS ECR
