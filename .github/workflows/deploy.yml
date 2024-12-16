@@ -88,15 +88,49 @@ jobs:
             key: ${{ env.AWS_SSH_KEY_PRIVATE }}
             envs: AWS_SSH_KEY_PRIVATE, REGISTRY, REPOSITORY, IMAGE_TAG, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION, AWS_REGION
             script: |-
+              # Update and upgrade packages
               sudo apt update
               sudo apt upgrade -y
-              sudo apt install docker.io -y
-              sudo apt install unzip curl -y
-              sudo curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-              sudo unzip awscliv2.zip
-              sudo ./aws/install
-              sudo $(aws ecr get-login --no-include-email --region eu-north-1);
+        
+              # Install Docker if not already installed
+              if ! command -v docker &> /dev/null
+              then
+                echo "Docker not found. Installing Docker..."
+                sudo apt install docker.io -y
+              else
+                echo "Docker is already installed."
+              fi
+        
+              # Install curl and unzip if not already installed
+              if ! command -v curl &> /dev/null || ! command -v unzip &> /dev/null
+              then
+                echo "Installing curl and unzip..."
+                sudo apt install unzip curl -y
+              else
+                echo "curl and unzip are already installed."
+              fi
+        
+              # Install AWS CLI if not already installed
+              if ! command -v aws &> /dev/null
+              then
+                echo "AWS CLI not found. Installing..."
+                sudo curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                sudo unzip awscliv2.zip
+                sudo ./aws/install
+                rm -rf awscliv2.zip aws/
+              else
+                echo "AWS CLI is already installed."
+              fi
+        
+              # Log in to AWS ECR
+              sudo aws ecr get-login-password --region $AWS_DEFAULT_REGION | sudo docker login --username AWS --password-stdin $REGISTRY
+        
+              # Stop and remove the old container if it exists
               sudo docker stop myappcontainer || true
               sudo docker rm myappcontainer || true
+        
+              # Pull the latest image from ECR
               sudo docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
+        
+              # Run the new container
               sudo docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
