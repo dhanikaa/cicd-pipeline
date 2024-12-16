@@ -84,7 +84,7 @@ jobs:
           uses: appleboy/ssh-action@master
           with:
             host: ${{ env.SERVER_PUBLIC_IP }}
-            username: ubuntu
+            username: ec2-user
             key: ${{ env.AWS_SSH_KEY_PRIVATE }}
             envs: AWS_SSH_KEY_PRIVATE, REGISTRY, REPOSITORY, IMAGE_TAG, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION, AWS_REGION
             script: |-
