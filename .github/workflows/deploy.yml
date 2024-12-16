@@ -1,4 +1,4 @@
-name: CI/CD with terraform
+name: CI/CD with Terraform
 
 on: [push, workflow_dispatch]
 
@@ -14,7 +14,7 @@ jobs:
     deploy-infrastructure:
         runs-on: ubuntu-latest
         outputs:
-          SERVER_PUBLIC_IP: ${{ steps.set-ip.outputs.instance_public_ip}}
+          SERVER_PUBLIC_IP: ${{ env.instance_public_ip }}
         steps:
             - name: Checkout
               uses: actions/checkout@v2
@@ -23,11 +23,9 @@ jobs:
               with:
                 terraform_wrapper: false
             - name: Terraform init
-              id: init
               run: terraform init -backend-config="bucket=$AWS_TF_STATE_BUCKET_NAME" -backend-config="region=$AWS_REGION"
               working-directory: ./terraform
             - name: Terraform plan
-              id: plan
               run: |-
                 terraform plan \
                 -var="region=$AWS_REGION" \
@@ -37,13 +35,12 @@ jobs:
                 -out=PLAN
               working-directory: ./terraform
             - name: Terraform apply
-              id: apply
               run: terraform apply PLAN
               working-directory: ./terraform
             - name: Set output
               id: set-ip
-              run: |-
-                echo "::set-output name=instance_public_ip::$(terraform output instance_public_ip)"
+              run: echo "instance_public_ip=$(terraform output -raw instance_public_ip)" >> $GITHUB_ENV
+
     deploy-app:
       runs-on: ubuntu-latest
       needs: deploy-infrastructure
@@ -51,37 +48,35 @@ jobs:
         - name: Checkout
           uses: actions/checkout@v3
         - name: Set IP env variable
-          run: echo SERVER_PUBLIC_IP=${{ needs.deploy-infrastructure.outputs.SERVER_PUBLIC_IP}} >> $GITHUB_ENV
+          run: echo SERVER_PUBLIC_IP=${{ env.instance_public_ip }} >> $GITHUB_ENV
         - name: Login to AWS ECR
           id: login-ecr
           uses: aws-actions/amazon-ecr-login@v1
-        - name: Build, push docker image
+        - name: Build and push Docker image
           env: 
-            REGISTRY: ${{ steps.login-ecr.outputs.registry}}
-            REPOSITOR: example-node-app
-            IMAGE_TAG: ${{ github.sha}}
+            REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+            REPOSITORY: example-node-app
+            IMAGE_TAG: ${{ github.sha }}
           run: |-
             docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
             docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-        - name: Deploy docker image to EC2
+        - name: Deploy Docker image to EC2
           env:
-            REGISTRY: ${{ steps.login-ecr.outputs.registry}}
+            REGISTRY: ${{ steps.login-ecr.outputs.registry }}
             REPOSITORY: example-node-app
-            IMAGE_TAG: ${{ github.sha}}
+            IMAGE_TAG: ${{ github.sha }}
             AWS_DEFAULT_REGION: eu-north-1
           uses: appleboy/ssh-action@master
           with:
-            host: ${{ env.SERVER_PUBLIC_IP}}
+            host: ${{ env.SERVER_PUBLIC_IP }}
             username: ubuntu
-            key: ${{ env.AWS_SSH_KEY_PRIVATE}}
-            envs: AWS_SSH_KEY_PRIVATE, REGISTRY, REPOSITORY, IMAGE_TAG, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION, AWS_REGION
+            key: ${{ secrets.AWS_SSH_KEY_PRIVATE }}
             script: |-
               sudo apt update
               sudo apt install docker.io -y
-              sudo apt install awscli
-              sudo $(aws ecr get-login --no-include-email --region eu-north-1);
+              sudo apt install awscli -y
+              sudo $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
               sudo docker stop myappcontainer || true
               sudo docker rm myappcontainer || true
               sudo docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
-              sudo docker run -d -name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
-
+              sudo docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
