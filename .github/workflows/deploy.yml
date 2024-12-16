@@ -12,44 +12,43 @@ env:
 
 jobs:
     deploy-infrastructure:
-        runs-on: ubuntu-latest
-        outputs:
-          SERVER_PUBLIC_IP: ${{ steps.set-ip.outputs.instance_public_ip }}
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v2
-            - name: Setup Terraform
-              uses: hashicorp/setup-terraform@v1
-              with:
-                terraform_wrapper: false
-            - name: Terraform init
-              id: init
-              run: terraform init -backend-config="bucket=$AWS_TF_STATE_BUCKET_NAME" -backend-config="region=$AWS_REGION"
-              working-directory: ./terraform
-            - name: Terraform plan
-              id: plan
-              run: |-
-                terraform plan \
-                -var="region=$AWS_REGION" \
-                -var="public_key=$AWS_SSH_KEY_PUBLIC" \
-                -var="private_key=$AWS_SSH_KEY_PRIVATE" \
-                -var="key_name=deployer-key" \
-                -out=PLAN
-              working-directory: ./terraform
-            - name: Terraform apply
-              id: apply
-              run: terraform apply PLAN
-              working-directory: ./terraform
-            - name: Set output
-              id: set-ip
-              run: echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
+      runs-on: ubuntu-latest
+      outputs:
+        SERVER_PUBLIC_IP: ${{ steps.set-ip.outputs.instance_public_ip }}
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v2
+        - name: Setup Terraform
+          uses: hashicorp/setup-terraform@v1
+          with:
+            terraform_wrapper: false
+        - name: Terraform init
+          id: init
+          run: terraform init -backend-config="bucket=$AWS_TF_STATE_BUCKET_NAME" -backend-config="region=$AWS_REGION"
+          working-directory: ./terraform
+        - name: Terraform plan
+          id: plan
+          run: terraform plan -var="region=$AWS_REGION" -var="public_key=$AWS_SSH_KEY_PUBLIC" -var="private_key=$AWS_SSH_KEY_PRIVATE" -var="key_name=deployer-key" -out=PLAN
+          working-directory: ./terraform
+        - name: Terraform apply
+          id: apply
+          run: terraform apply PLAN
+          working-directory: ./terraform
+        - name: Debug Terraform output
+          run: terraform output instance_public_ip
+          working-directory: ./terraform
+        - name: Set output
+          id: set-ip
+          run: |
+            echo "instance_public_ip=$(terraform output -raw instance_public_ip)" >> $GITHUB_ENV
+          working-directory: ./terraform
+
     deploy-app:
       runs-on: ubuntu-latest
       needs: deploy-infrastructure
       steps:
         - name: Checkout
           uses: actions/checkout@v3
-
         - name: Ensure ECR Repository Exists
           run: |
             aws ecr describe-repositories --repository-names example-node-app --region $AWS_REGION || \
@@ -58,18 +57,13 @@ jobs:
             AWS_REGION: eu-north-1
             AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
             AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
         - name: Set IP env variable
-          run: echo SERVER_PUBLIC_IP=${{ steps.set-ip.outputs.instance_public_ip }} >> $GITHUB_ENV
-
-        # Add the debug step to print SERVER_PUBLIC_IP
+          run: echo SERVER_PUBLIC_IP=${{ env.SERVER_PUBLIC_IP }} >> $GITHUB_ENV
         - name: Debug SERVER_PUBLIC_IP
-          run: echo "SERVER_PUBLIC_IP=${{ steps.set-ip.outputs.instance_public_ip }}"
-
+          run: echo "SERVER_PUBLIC_IP=${{ env.SERVER_PUBLIC_IP }}"
         - name: Login to AWS ECR
           id: login-ecr
           uses: aws-actions/amazon-ecr-login@v1
-
         - name: Build and push Docker image
           env: 
             REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -79,7 +73,6 @@ jobs:
             docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
             docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
           working-directory: ./nodeapp
-
         - name: Deploy docker image to EC2
           env:
             REGISTRY: ${{ steps.login-ecr.outputs.registry }}
