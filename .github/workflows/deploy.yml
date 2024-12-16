@@ -65,9 +65,10 @@ jobs:
           run: echo "SERVER_PUBLIC_IP=${{ env.SERVER_PUBLIC_IP }}"
         - name: Debug SSH connection
           run: |
-            mkdir -p ~/.ssh/
+            mkdir -p ~/.ssh
             echo "${{ secrets.AWS_SSH_KEY_PRIVATE }}" > ~/.ssh/aws_private_key.pem
             chmod 600 ~/.ssh/aws_private_key.pem
+            ssh-keyscan -H ${{ env.SERVER_PUBLIC_IP }} >> ~/.ssh/known_hosts
             ssh -vvv -i ~/.ssh/aws_private_key.pem ubuntu@${{ env.SERVER_PUBLIC_IP }} "echo 'SSH connection successful'"
         - name: Login to AWS ECR
           id: login-ecr
