@@ -63,6 +63,9 @@ jobs:
           run: echo SERVER_PUBLIC_IP=${{ needs.deploy-infrastructure.outputs.SERVER_PUBLIC_IP }} >> $GITHUB_ENV
         - name: Debug SERVER_PUBLIC_IP
           run: echo "SERVER_PUBLIC_IP=${{ env.SERVER_PUBLIC_IP }}"
+        - name: Debug SSH connection
+          run: |
+            ssh -vvv -i ${{ secrets.AWS_SSH_KEY_PRIVATE }} ubuntu@${{ env.SERVER_PUBLIC_IP }} "echo 'SSH connection successful'"
         - name: Login to AWS ECR
           id: login-ecr
           uses: aws-actions/amazon-ecr-login@v1
